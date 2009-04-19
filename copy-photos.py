@@ -40,7 +40,7 @@ parser.add_option("-n", "--dry_run",
 
 (options, args) = parser.parse_args()
 
-if not (options.source or options.dest):
+if not (options.source and options.dest):
     parser.print_help()
     sys.exit(1)
 
