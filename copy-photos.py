@@ -8,6 +8,8 @@ import time
 import shutil
 from optparse import OptionParser
 
+from progressbar import *
+
 FILE_TYPES = [
     "crw",
     "cr2",
@@ -20,7 +22,8 @@ FILE_TYPES = [
 # don't want to list them as skipped so we *really* skip them and
 # don't say anything.
 SPECIAL_FILE_TYPES = [
-    "thm"
+    "thm",
+    "xmp"
 ]
 
 parser = OptionParser()
@@ -62,16 +65,18 @@ def queue_file(source_file, dest_file):
     it is the same file at the dest.
     """
     if os.path.exists(dest_file):
-        print "Already exists:"
-        print "    %s" % source_file
-        print "    %s" % dest_file
-        
+        extra_info = ""
         source_stat = os.stat(source_file)
         dest_stat = os.stat(dest_file)
         if source_stat.st_size != dest_stat.st_size:
-            print "    !!! sizes differ !!!"
+            extra_info += "\n    !!! sizes differ !!!"
         if abs(source_stat.st_mtime - dest_stat.st_mtime) > 5:
-            print "    !!! times differ !!! %d" % (source_stat.st_mtime - dest_stat.st_mtime)
+            extra_info += "\n    !!! times differ !!! %d" % (source_stat.st_mtime - dest_stat.st_mtime)
+        if options.verbose or extra_info:
+            print "Already exists:"
+            print "    %s" % source_file
+            print "    %s%s" % (dest_file, extra_info)
+            
         exists.append(source_file)
     else:
         if options.verbose:
@@ -83,12 +88,11 @@ def queue_file(source_file, dest_file):
 
 print "Scanning directories"
 for root, dirs, files in os.walk(options.source):
-    for file in files:
+    files_lc = dict([(string.lower(f), i) for (i, f) in enumerate(files)])
+    for (i, file) in enumerate(files):
         (base, ext) = os.path.splitext(file)
         source_ext = string.lower(ext[1:])
         source_file = os.path.join(root, file)
-        
-        source_thm = os.path.join(root, base + ".THM")
         
         if source_ext in FILE_TYPES:
             dest_subpath = time.strftime("%Y/%m/%Y-%m-%d",
@@ -98,24 +102,38 @@ for root, dirs, files in os.walk(options.source):
 
             queue_file(source_file, dest_file)
 
-            # I've seen cases where the .THM (thumbnail buddy file for
-            # movies and old CRWs) have a date different than the
-            # original.  To fix this, take the date from the original
-            # and copy the THM if it exists.
-            if os.path.exists(source_thm):
-                dest_thm = os.path.join(dest_dir, base + ".THM")
-                queue_file(source_thm, dest_thm)
+            # we have to look for certain sidecar types, such as THM
+            # files and XMP files.  We have to treat these differently
+            # here as they may have a different date than their buddy
+            # file.
+            for sidecar_ext in SPECIAL_FILE_TYPES:
+                sidecar_lc = string.lower("%s.%s" % (base, sidecar_ext))
+                if sidecar_lc in files_lc:
+                    base_sidecar = files[files_lc[sidecar_lc]]
+                    source_sidecar = os.path.join(root, base_sidecar)
+                    dest_sidecar = os.path.join(dest_dir, base_sidecar)
+                    queue_file(source_sidecar, dest_sidecar)
 
         else:
             if source_ext not in SPECIAL_FILE_TYPES:
-                print "Skipping %s" % source_file
+                if options.verbose:
+                    print "Skipping %s" % source_file
                 skip.append(source_file)
+
+
+print "Copy:    %4d" % len(copy)
+print "Existed: %4d" % len(exists)
+print "Skipped: %4d" % len(skip)
 
 
 if not options.dry_run:
     print
     print "Starting copy now"
     
+    pb = ProgressBar(0, len(copy))
+    if not options.verbose:
+        pb(0)
+
     for (source_file, dest_file) in copy:
         try:
             if options.verbose:
@@ -123,8 +141,7 @@ if not options.dry_run:
                 print "    %s" % source_file
                 print "    %s" % dest_file
             else:
-                sys.stdout.write(".")
-                sys.stdout.flush()
+                pb(pb.amount + 1)
                     
             copy_size += os.path.getsize(source_file)
             dest_dir = os.path.dirname(dest_file)
