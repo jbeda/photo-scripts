@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 
 import sys
+import traceback
 import os
 import os.path
 import string
 import time
 import shutil
+import subprocess
 from optparse import OptionParser
 
 from progressbar import *
@@ -56,6 +58,17 @@ exists = []
 
 copy_size = 0
 start_time = time.time()
+
+def my_copy(src, dst):
+  """Implement a faithful copy.
+
+  On the mac, shell out to "cp -p" to handle wacky chattr issues with SMB
+  shares.
+  """
+  if sys.platform == "darwin":
+    subprocess.check_call(["gcp", "-p", "-f", src, dst])
+  else:
+    shutil.copy2(src, dst)
 
 def queue_file(source_file, dest_file):
     """Add a file to our copy queue.
@@ -126,7 +139,7 @@ print "Existed: %4d" % len(exists)
 print "Skipped: %4d" % len(skip)
 
 
-if not options.dry_run:
+if not options.dry_run and len(copy):
     print
     print "Starting copy now"
     
@@ -147,9 +160,9 @@ if not options.dry_run:
             dest_dir = os.path.dirname(dest_file)
             if not os.path.exists(dest_dir):
                 os.makedirs(dest_dir)
-            shutil.copy2(source_file,
-                         dest_file)
+            my_copy(source_file, dest_file)
         except:
+            traceback.print_exc()
             os.remove(dest_file)
             sys.exit(2)
 
