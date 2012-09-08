@@ -13,10 +13,11 @@ from optparse import OptionParser
 from progressbar import *
 
 FILE_TYPES = [
-    "crw",
-    "cr2",
-    "jpg",
+    "arw,"
     "avi",
+    "cr2",
+    "crw",
+    "jpg",
     "mov",
     "mp4",
     "mts",
