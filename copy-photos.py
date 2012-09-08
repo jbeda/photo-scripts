@@ -17,7 +17,9 @@ FILE_TYPES = [
     "cr2",
     "jpg",
     "avi",
-    "mov"
+    "mov",
+    "mp4",
+    "mts",
 ]
 
 # THM files are copied when we look at the original buddy file.  We
